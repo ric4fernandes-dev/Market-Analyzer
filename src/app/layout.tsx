@@ -5,7 +5,7 @@ import Script from "next/script";
 import "./globals.css";
 // Import all available fonts for AI usage
 import "../lib/fonts";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { Providers } from "@/components/providers/Providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,16 +28,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <Script src="/lasy-bridge.js" strategy="beforeInteractive" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
-        <AuthProvider>
+        <Providers>
           {children}
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );

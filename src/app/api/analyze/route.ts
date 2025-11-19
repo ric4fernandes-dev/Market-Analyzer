@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Força a rota a ser dinâmica (não será pré-renderizada no build)
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-export const revalidate = 0;
-
 export async function POST(request: NextRequest) {
   try {
     const { image } = await request.json();
@@ -16,114 +11,234 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verifica se a chave da OpenAI está configurada
+    // Verificar se a chave da OpenAI está configurada
     const apiKey = process.env.OPENAI_API_KEY;
+    
+    console.log("=== DEBUG INICIO ===");
+    console.log("API Key presente:", !!apiKey);
+    console.log("API Key começa com sk-:", apiKey?.startsWith('sk-'));
+    console.log("Tamanho da imagem:", image.length);
+    
     if (!apiKey) {
+      console.error("OPENAI_API_KEY não configurada");
       return NextResponse.json(
-        { error: "Chave da OpenAI não configurada. Configure a variável OPENAI_API_KEY nas variáveis de ambiente." },
-        { status: 500 }
+        { error: "Chave da API OpenAI não configurada. Configure a variável OPENAI_API_KEY nas configurações do projeto." },
+        { status: 400 }
       );
     }
 
-    // Importação dinâmica do OpenAI apenas em runtime
-    const { default: OpenAI } = await import("openai");
-    const openai = new OpenAI({ apiKey });
+    // Validar formato da chave
+    if (!apiKey.startsWith('sk-')) {
+      console.error("OPENAI_API_KEY com formato inválido");
+      return NextResponse.json(
+        { error: "Chave da API OpenAI com formato inválido. A chave deve começar com 'sk-'." },
+        { status: 400 }
+      );
+    }
 
-    // Análise da imagem usando OpenAI Vision
-    const response = await openai.chat.completions.create({
+    // Extrair apenas a parte base64 da imagem
+    const base64Image = image.split(",")[1] || image;
+
+    // Validar se é uma imagem base64 válida
+    if (!base64Image || base64Image.length < 100) {
+      return NextResponse.json(
+        { error: "Imagem inválida ou corrompida" },
+        { status: 400 }
+      );
+    }
+
+    console.log("Iniciando análise com OpenAI Vision API...");
+    console.log("Tamanho base64:", base64Image.length);
+
+    const requestBody = {
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: `Você é um analista financeiro especializado em análise técnica de gráficos. 
-          Analise o gráfico fornecido e forneça uma recomendação clara de COMPRA, VENDA ou AGUARDAR.
-          
-          Responda SEMPRE APENAS com um JSON válido (sem texto adicional), seguindo EXATAMENTE esta estrutura:
-          {
-            "recommendation": "buy",
-            "confidence": 85,
-            "analysis": "Análise detalhada aqui",
-            "keyPoints": ["Ponto 1", "Ponto 2", "Ponto 3"]
-          }
-          
-          REGRAS OBRIGATÓRIAS:
-          - recommendation: APENAS "buy", "sell" ou "hold" (minúsculas)
-          - confidence: número inteiro entre 0 e 100 (SEM símbolo %)
-          - analysis: texto em português explicando a análise
-          - keyPoints: array com 3-5 pontos importantes
-          
-          Considere na análise:
-          - Tendências de preço (alta, baixa, lateral)
-          - Padrões gráficos (suporte, resistência, candles)
-          - Volume de negociação
-          - Indicadores técnicos visíveis (médias móveis, RSI, MACD, etc)
-          - Momentum do mercado
-          
-          IMPORTANTE: Retorne APENAS o JSON, sem texto antes ou depois.`,
+          content: `Você é um analista técnico especializado em mercados financeiros. Analise o gráfico fornecido e forneça uma recomendação clara.
+
+Sua análise deve considerar:
+- Padrões de candlestick (doji, martelo, engolfo, etc)
+- Tendências (alta, baixa, lateral)
+- Suportes e resistências
+- Volume de negociação
+- Indicadores técnicos visíveis (médias móveis, RSI, MACD, etc)
+- Padrões gráficos (triângulos, bandeiras, ombro-cabeça-ombro, etc)
+
+Responda APENAS com um JSON no seguinte formato:
+{
+  "recommendation": "buy" | "sell" | "hold",
+  "confidence": número entre 0-100,
+  "analysis": "explicação detalhada da análise em português"
+}
+
+Regras:
+- "buy" = sinais claros de compra (tendência de alta, rompimento de resistência, padrões de alta)
+- "sell" = sinais claros de venda (tendência de baixa, rompimento de suporte, padrões de baixa)
+- "hold" = sinais mistos ou inconclusivos, aguardar melhor momento
+- confidence deve refletir a força dos sinais identificados (0-100%)`,
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Analise este gráfico financeiro e retorne APENAS o JSON com sua análise técnica completa.",
+              text: "Analise este gráfico financeiro e forneça uma recomendação de trading.",
             },
             {
               type: "image_url",
               image_url: {
-                url: image,
+                url: `data:image/jpeg;base64,${base64Image}`,
               },
             },
           ],
         },
       ],
-      max_tokens: 1500,
-      temperature: 0.5,
-      response_format: { type: "json_object" },
+      max_tokens: 1000,
+      temperature: 0.3,
+    };
+
+    console.log("Enviando requisição para OpenAI...");
+
+    // Chamar OpenAI Vision API para análise
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    const content = response.choices[0].message.content;
-    
-    if (!content) {
-      throw new Error("Resposta vazia da API");
-    }
+    console.log("Resposta da OpenAI recebida. Status:", response.status);
+    console.log("Status Text:", response.statusText);
 
-    // Parse do JSON da resposta
-    let result;
-    try {
-      result = JSON.parse(content);
-    } catch (parseError) {
-      console.error("Erro ao fazer parse do JSON:", content);
-      // Tenta extrair JSON do conteúdo
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("=== ERRO COMPLETO DA OPENAI ===");
+      console.error("Status:", response.status);
+      console.error("Status Text:", response.statusText);
+      console.error("Response Body:", errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+        console.error("Error Data (parsed):", JSON.stringify(errorData, null, 2));
+      } catch {
+        console.error("Não foi possível parsear erro como JSON");
+        errorData = { message: errorText };
+      }
+      
+      // Mensagens de erro mais específicas
+      if (response.status === 401) {
+        return NextResponse.json(
+          { error: `Chave da API OpenAI inválida ou expirada. Detalhes: ${errorData.error?.message || errorText}` },
+          { status: 401 }
+        );
+      } else if (response.status === 429) {
+        return NextResponse.json(
+          { error: `Limite de requisições da OpenAI excedido. Detalhes: ${errorData.error?.message || errorText}` },
+          { status: 429 }
+        );
+      } else if (response.status === 400) {
+        return NextResponse.json(
+          { error: `Erro na requisição: ${errorData.error?.message || errorText}` },
+          { status: 400 }
+        );
       } else {
-        throw new Error("Não foi possível extrair JSON válido da resposta");
+        return NextResponse.json(
+          { error: `Erro ao comunicar com OpenAI (${response.status}): ${errorData.error?.message || errorText}` },
+          { status: response.status }
+        );
       }
     }
 
-    // Validação e normalização dos dados
-    const validatedResult = {
-      recommendation: (result.recommendation || "hold").toLowerCase(),
-      confidence: Math.min(100, Math.max(0, parseInt(result.confidence) || 0)),
-      analysis: result.analysis || "Análise não disponível",
-      keyPoints: Array.isArray(result.keyPoints) ? result.keyPoints : ["Análise em andamento"]
-    };
+    const data = await response.json();
+    console.log("Dados da OpenAI processados com sucesso");
+    console.log("Response data:", JSON.stringify(data, null, 2));
 
-    // Garante que recommendation é válido
-    if (!["buy", "sell", "hold"].includes(validatedResult.recommendation)) {
-      validatedResult.recommendation = "hold";
+    const content = data.choices[0]?.message?.content;
+
+    if (!content) {
+      console.error("Resposta da OpenAI sem conteúdo:", data);
+      return NextResponse.json(
+        { error: "Resposta inválida da IA. Tente novamente." },
+        { status: 500 }
+      );
     }
 
-    console.log("Resultado validado:", validatedResult);
+    console.log("Conteúdo recebido:", content);
 
-    return NextResponse.json(validatedResult);
+    // Extrair JSON da resposta
+    let analysisResult;
+    try {
+      // Tentar parsear diretamente
+      analysisResult = JSON.parse(content);
+    } catch {
+      // Se falhar, tentar extrair JSON do texto
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          analysisResult = JSON.parse(jsonMatch[0]);
+        } catch (parseError) {
+          console.error("Erro ao parsear JSON extraído:", parseError);
+          console.error("Conteúdo recebido:", content);
+          return NextResponse.json(
+            { error: "Não foi possível processar a resposta da IA. Tente novamente." },
+            { status: 500 }
+          );
+        }
+      } else {
+        console.error("JSON não encontrado na resposta:", content);
+        return NextResponse.json(
+          { error: "Formato de resposta inválido da IA. Tente novamente." },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Validar estrutura da resposta
+    if (
+      !analysisResult.recommendation ||
+      typeof analysisResult.confidence !== "number" ||
+      !analysisResult.analysis
+    ) {
+      console.error("Estrutura de resposta inválida:", analysisResult);
+      return NextResponse.json(
+        { error: "Formato de resposta inválido. Tente novamente." },
+        { status: 500 }
+      );
+    }
+
+    // Garantir que confidence está entre 0-100
+    analysisResult.confidence = Math.max(
+      0,
+      Math.min(100, analysisResult.confidence)
+    );
+
+    console.log("Análise concluída com sucesso:", {
+      recommendation: analysisResult.recommendation,
+      confidence: analysisResult.confidence
+    });
+    console.log("=== DEBUG FIM ===");
+
+    return NextResponse.json(analysisResult);
   } catch (error) {
-    console.error("Erro na análise:", error);
+    console.error("=== ERRO CATCH GERAL ===");
+    console.error("Erro ao processar análise:", error);
+    console.error("Stack trace:", error instanceof Error ? error.stack : "N/A");
+    
+    // Tratamento específico para erros de rede
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      return NextResponse.json(
+        { error: "Erro de conexão com a API OpenAI. Verifique sua conexão com a internet." },
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
       { 
-        error: "Erro ao analisar a imagem",
+        error: "Erro interno ao processar análise. Tente novamente.",
         details: error instanceof Error ? error.message : "Erro desconhecido"
       },
       { status: 500 }

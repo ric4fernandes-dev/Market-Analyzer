@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -19,18 +18,61 @@ import {
   HelpCircle,
   FileText,
   ChevronDown,
+  ChevronRight,
   Sparkles,
   Clock,
   LifeBuoy,
+  Shield,
+  Palette,
+  Key,
+  UserCircle,
+  Crown,
+  Zap,
+  Star,
+  Activity,
+  Download,
+  Eye,
+  MessageCircle,
+  BookOpen,
+  Mail,
+  LineChart,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 
-export function Sidebar() {
+type SubMenuItem = {
+  icon: any;
+  labelKey: string;
+  badge?: string;
+  descriptionKey?: string;
+};
+
+type UserMenuItem = {
+  icon: any;
+  labelKey: string;
+  highlight?: boolean;
+  subItems?: SubMenuItem[];
+};
+
+type MenuItem = {
+  icon: any;
+  labelKey: string;
+  id: string;
+};
+
+interface SidebarProps {
+  onNavigate?: (id: string) => void;
+  activeSection?: string;
+}
+
+export function Sidebar({ onNavigate, activeSection = "home" }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [expandedSubMenu, setExpandedSubMenu] = useState<string | null>(null);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Close user menu when clicking outside
@@ -38,6 +80,7 @@ export function Sidebar() {
     function handleClickOutside(event: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setIsUserMenuOpen(false);
+        setExpandedSubMenu(null);
       }
     }
 
@@ -45,34 +88,86 @@ export function Sidebar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const menuItems = [
-    { icon: Home, label: "Início", href: "/" },
-    { icon: Upload, label: "Nova Análise", href: "/analise" },
-    { icon: History, label: "Histórico", href: "/historico" },
-    { icon: TrendingUp, label: "Portfólio", href: "/portfolio" },
-    { icon: Bell, label: "Alertas", href: "/alertas" },
-    { icon: FileText, label: "Relatórios", href: "/relatorios" },
+  const menuItems: MenuItem[] = [
+    { icon: History, labelKey: "history", id: "historico" },
+    { icon: HelpCircle, labelKey: "help", id: "ajuda" },
   ];
 
-  const bottomMenuItems = [
-    { icon: CreditCard, label: "Planos", href: "/planos" },
-    { icon: Settings, label: "Configurações", href: "/configuracoes" },
-    { icon: HelpCircle, label: "Ajuda", href: "/ajuda" },
+  const userMenuItems: UserMenuItem[] = [
+    {
+      icon: Settings,
+      labelKey: "settings",
+      subItems: [
+        { icon: UserCircle, labelKey: "profile", descriptionKey: "profileDesc" },
+        { icon: Shield, labelKey: "security", descriptionKey: "securityDesc" },
+        { icon: Palette, labelKey: "appearance", descriptionKey: "appearanceDesc" },
+        { icon: Key, labelKey: "apiKeys", descriptionKey: "apiKeysDesc" },
+      ],
+    },
+    {
+      icon: Sparkles,
+      labelKey: "upgrade",
+      highlight: true,
+      subItems: [
+        { icon: Zap, labelKey: "basicPlan", badge: "€9.99", descriptionKey: "basicPlanDesc" },
+        { icon: Crown, labelKey: "proPlan", badge: "€29.99", descriptionKey: "proPlanDesc" },
+        { icon: Star, labelKey: "enterprisePlan", badge: "€99.99", descriptionKey: "enterprisePlanDesc" },
+      ],
+    },
+    {
+      icon: Clock,
+      labelKey: "activityHistory",
+      subItems: [
+        { icon: Activity, labelKey: "recentAnalyses", descriptionKey: "recentAnalysesDesc" },
+        { icon: Download, labelKey: "downloads", descriptionKey: "downloadsDesc" },
+        { icon: Eye, labelKey: "views", descriptionKey: "viewsDesc" },
+      ],
+    },
+    {
+      icon: LifeBuoy,
+      labelKey: "support",
+      subItems: [
+        { icon: MessageCircle, labelKey: "liveChat", descriptionKey: "liveChatDesc" },
+        { icon: BookOpen, labelKey: "knowledgeBase", descriptionKey: "knowledgeBaseDesc" },
+        { icon: Mail, labelKey: "emailContact", descriptionKey: "emailContactDesc" },
+      ],
+    },
   ];
 
-  const userMenuItems = [
-    { icon: Settings, label: "Configurações", href: "/configuracoes" },
-    { icon: Sparkles, label: "Fazer Upgrade", href: "/upgrade", highlight: true },
-    { icon: Clock, label: "Histórico de Atividades", href: "/atividades" },
-    { icon: LifeBuoy, label: "Suporte", href: "/suporte" },
-  ];
-
-  const isActive = (href: string) => pathname === href;
+  const isActive = (id: string) => activeSection === id;
 
   const handleUserMenuToggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsUserMenuOpen(!isUserMenuOpen);
+    if (isUserMenuOpen) {
+      setExpandedSubMenu(null);
+    }
+  };
+
+  const handleSubMenuToggle = (label: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedSubMenu(expandedSubMenu === label ? null : label);
+  };
+
+  const handleSubItemClick = (itemLabel: string, subItemLabel: string) => {
+    console.log(`Clicou em: ${itemLabel} -> ${subItemLabel}`);
+    setExpandedSubMenu(null);
+  };
+
+  const handleMenuClick = (id: string) => {
+    if (onNavigate) {
+      onNavigate(id);
+    }
+    setIsOpen(false);
+  };
+
+  const handleLogout = () => {
+    logout();
+    setIsUserMenuOpen(false);
+    setIsOpen(false);
+    setExpandedSubMenu(null);
   };
 
   return (
@@ -105,18 +200,33 @@ export function Sidebar() {
         } lg:translate-x-0`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
+          {/* Logo - DESIGN MODERNO PADRONIZADO */}
           <div className="p-6 border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity" />
-                <div className="relative p-2.5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg">
-                  <BarChart3 className="w-6 h-6 text-white" />
+                {/* Glow effect animado */}
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-2xl blur-xl opacity-60 group-hover:opacity-90 transition-all duration-500 animate-pulse" />
+                
+                {/* Container do logo com gradiente */}
+                <div className="relative p-3 bg-gradient-to-br from-purple-600 via-pink-600 to-orange-500 rounded-2xl shadow-2xl transform group-hover:scale-105 transition-all duration-300">
+                  {/* Ícones sobrepostos para efeito 3D */}
+                  <div className="relative">
+                    <TrendingUp className="w-7 h-7 text-white absolute top-0 left-0 opacity-30 transform -translate-x-0.5 -translate-y-0.5" />
+                    <LineChart className="w-7 h-7 text-white relative z-10" />
+                  </div>
+                  
+                  {/* Sparkle decorativo */}
+                  <Sparkles className="w-3 h-3 text-yellow-300 absolute -top-1 -right-1 animate-pulse" />
                 </div>
               </div>
+              
               <div>
-                <h1 className="text-lg font-bold text-white">Meu Gráfico AI</h1>
-                <p className="text-xs text-slate-400">Análise Inteligente</p>
+                <h1 className="text-xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
+                  {t.appName}
+                </h1>
+                <p className="text-xs font-semibold text-slate-400 tracking-wide">
+                  {t.intelligentAnalysis}
+                </p>
               </div>
             </div>
           </div>
@@ -147,36 +257,75 @@ export function Sidebar() {
 
               {/* Dropdown Menu */}
               {isUserMenuOpen && (
-                <div className="absolute top-full left-4 right-4 mt-2 bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute top-full left-4 right-4 mt-2 bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2 duration-200 max-h-[calc(100vh-200px)] overflow-y-auto">
                   <div className="p-2 space-y-1">
                     {userMenuItems.map((item) => {
                       const Icon = item.icon;
+                      const hasSubItems = item.subItems && item.subItems.length > 0;
+                      const isExpanded = expandedSubMenu === item.labelKey;
+
                       return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            setIsOpen(false);
-                          }}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 group ${
-                            item.highlight
-                              ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30"
-                              : "text-slate-300 hover:text-white hover:bg-white/10"
-                          }`}
-                        >
-                          <Icon
-                            className={`w-4 h-4 ${
+                        <div key={item.labelKey}>
+                          {/* Main Item */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleSubMenuToggle(item.labelKey, e)}
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 group ${
                               item.highlight
-                                ? "text-amber-400"
-                                : "text-slate-400 group-hover:text-cyan-400"
+                                ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-300 hover:from-amber-500/30 hover:to-orange-500/30"
+                                : "text-slate-300 hover:text-white hover:bg-white/10"
                             }`}
-                          />
-                          <span className="text-sm font-medium">{item.label}</span>
-                          {item.highlight && (
-                            <Sparkles className="w-3 h-3 text-amber-400 ml-auto animate-pulse" />
+                          >
+                            <Icon
+                              className={`w-4 h-4 ${
+                                item.highlight
+                                  ? "text-amber-400"
+                                  : "text-slate-400 group-hover:text-cyan-400"
+                              }`}
+                            />
+                            <span className="text-sm font-medium flex-1 text-left">{t[item.labelKey as keyof typeof t]}</span>
+                            {item.highlight && (
+                              <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
+                            )}
+                            <ChevronRight
+                              className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${
+                                isExpanded ? "rotate-90" : ""
+                              }`}
+                            />
+                          </button>
+
+                          {/* Sub Items */}
+                          {hasSubItems && isExpanded && (
+                            <div className="ml-4 mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                              {item.subItems!.map((subItem) => {
+                                const SubIcon = subItem.icon;
+                                return (
+                                  <button
+                                    key={subItem.labelKey}
+                                    type="button"
+                                    onClick={() => handleSubItemClick(item.labelKey, subItem.labelKey)}
+                                    className="w-full flex items-start gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-300 group"
+                                  >
+                                    <SubIcon className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1 text-left">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium">{t[subItem.labelKey as keyof typeof t]}</span>
+                                        {subItem.badge && (
+                                          <span className="text-xs font-semibold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">
+                                            {subItem.badge}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {subItem.descriptionKey && (
+                                        <p className="text-xs text-slate-500 mt-0.5">{t[subItem.descriptionKey as keyof typeof t]}</p>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           )}
-                        </Link>
+                        </div>
                       );
                     })}
                     
@@ -186,15 +335,11 @@ export function Sidebar() {
                     {/* Logout */}
                     <button
                       type="button"
-                      onClick={() => {
-                        logout();
-                        setIsUserMenuOpen(false);
-                        setIsOpen(false);
-                      }}
+                      onClick={handleLogout}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300 group"
                     >
                       <LogOut className="w-4 h-4 text-slate-400 group-hover:text-red-400" />
-                      <span className="text-sm font-medium">Sair</span>
+                      <span className="text-sm font-medium">{t.logout}</span>
                     </button>
                   </div>
                 </div>
@@ -206,13 +351,12 @@ export function Sidebar() {
           <nav className="flex-1 overflow-y-auto p-4 space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const active = isActive(item.href);
+              const active = isActive(item.id);
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+                <button
+                  key={item.id}
+                  onClick={() => handleMenuClick(item.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
                     active
                       ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-white shadow-lg shadow-cyan-500/10"
                       : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
@@ -225,43 +369,14 @@ export function Sidebar() {
                         : "text-slate-500 group-hover:text-cyan-400"
                     }`}
                   />
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium">{t[item.labelKey as keyof typeof t]}</span>
                   {active && (
                     <div className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
                   )}
-                </Link>
+                </button>
               );
             })}
           </nav>
-
-          {/* Bottom Navigation */}
-          <div className="p-4 border-t border-white/10 space-y-1">
-            {bottomMenuItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
-                    active
-                      ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 text-white"
-                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-                  }`}
-                >
-                  <Icon
-                    className={`w-5 h-5 transition-all duration-300 ${
-                      active
-                        ? "text-cyan-400"
-                        : "text-slate-500 group-hover:text-cyan-400"
-                    }`}
-                  />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
         </div>
       </aside>
     </>
